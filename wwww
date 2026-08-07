@@ -1,5 +1,5 @@
 --[[
-	YOMOGI • MM2 TRADE CONTROLLER     YT: Yomogi Scripts
+	YOMOGI • MM2 TRADE CONTROLLER — SUMMER EDITION     YT: Yomogi Scripts
 ]]
 
 if getgenv and getgenv().YomogiTradeGuard then
@@ -12,18 +12,26 @@ local UserInputService  = game:GetService("UserInputService")
 local TweenService      = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
-local BG     = Color3.fromRGB(10, 10, 11)
-local CARD   = Color3.fromRGB(17, 16, 19)
-local ROW    = Color3.fromRGB(24, 23, 27)
-local PURPLE = Color3.fromRGB(215, 213, 222)   -- white-silver replaces purple
-local PURPLEDIM = Color3.fromRGB(55, 53, 62)
-local BORDER = Color3.fromRGB(52, 50, 58)
-local BORDERGLOW = Color3.fromRGB(95, 93, 105)
-local WHITE  = Color3.fromRGB(240, 238, 245)
-local GRAY   = Color3.fromRGB(115, 112, 124)
-local GREEN  = Color3.fromRGB(200, 198, 210)   -- silver "active" instead of green
-local OFF    = Color3.fromRGB(36, 34, 42)
-local ACCENT = Color3.fromRGB(5, 5, 6)
+-- summer sunset palette (matches the Yomogi MM2 Summer hub)
+local BG     = Color3.fromRGB(22, 14, 34)
+local CARD   = Color3.fromRGB(30, 20, 48)
+local ROW    = Color3.fromRGB(38, 25, 58)
+local ROWON  = Color3.fromRGB(52, 32, 70)
+local CORAL  = Color3.fromRGB(255, 143, 92)
+local MANGO  = Color3.fromRGB(255, 194, 71)
+local PINK   = Color3.fromRGB(255, 94, 126)
+local AQUA   = Color3.fromRGB(47, 224, 200)    -- "active" reads against all the warm tones
+local BORDER = Color3.fromRGB(72, 50, 92)
+local BORDERGLOW = Color3.fromRGB(255, 143, 92)
+local WHITE  = Color3.fromRGB(255, 243, 234)
+local GRAY   = Color3.fromRGB(169, 140, 174)
+local OFF    = Color3.fromRGB(52, 38, 70)
+
+local SUNSET = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, MANGO),
+	ColorSequenceKeypoint.new(0.5, CORAL),
+	ColorSequenceKeypoint.new(1, PINK)
+})
 
 local TI_FAST = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
@@ -36,6 +44,10 @@ end
 local function round(p, r) make("UICorner", { CornerRadius = UDim.new(0, r or 8), Parent = p }) end
 local function stroke(p, col, th) make("UIStroke", { Color = col or BORDER, Thickness = th or 1, Parent = p }) end
 local function tween(obj, props) TweenService:Create(obj, TI_FAST, props):Play() end
+-- gradients multiply against BackgroundColor3, so paint the object white to get true colors
+local function sunset(p, rot)
+	make("UIGradient", { Color = SUNSET, Rotation = rot or 0, Parent = p })
+end
 
 -- mount
 local gui = make("ScreenGui", { Name = "\0YomogiTG", ResetOnSpawn = false, IgnoreGuiInset = true,
@@ -53,6 +65,10 @@ local nHolder = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0),
 local function notify(text)
 	local c = make("Frame", { Parent = nHolder, BackgroundColor3 = ROW, Size = UDim2.new(0, 300, 0, 36) })
 	round(c, 8); stroke(c, BORDER, 1)
+	-- sunset stripe down the left edge
+	local stripe = make("Frame", { Parent = c, BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0,
+		Size = UDim2.new(0, 3, 1, -12), Position = UDim2.new(0, 0, 0, 6) })
+	round(stripe, 2); sunset(stripe, 90)
 	make("TextLabel", { Parent = c, BackgroundTransparency = 1, Text = "  " .. text, Font = Enum.Font.Gotham,
 		TextSize = 12, TextColor3 = WHITE, Size = UDim2.new(1, -16, 1, 0), Position = UDim2.new(0, 8, 0, 0),
 		TextXAlignment = Enum.TextXAlignment.Left, TextWrapped = true })
@@ -63,33 +79,38 @@ end
 local card = make("Frame", { Parent = gui, AnchorPoint = Vector2.new(0.5, 0.5),
 	Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 360, 0, 450), BackgroundColor3 = CARD })
 round(card, 18); stroke(card, BORDER, 1)
+-- dusk falloff toward the bottom of the card
+make("UIGradient", { Parent = card, Rotation = 90,
+	Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 180, 210)) })
 
--- purple top accent bar
+-- sunset top accent bar
 local accentBar = make("Frame", { Parent = card, Size = UDim2.new(1, 0, 0, 4),
-	BackgroundColor3 = PURPLE, BorderSizePixel = 0 })
+	BackgroundColor3 = Color3.new(1, 1, 1), BorderSizePixel = 0 })
 make("UICorner", { CornerRadius = UDim.new(0, 18), Parent = accentBar })
+sunset(accentBar)
 -- mask bottom corners of accent bar so only top corners show
-make("Frame", { Parent = accentBar, BackgroundColor3 = PURPLE, Size = UDim2.new(1, 0, 0.6, 0),
-	Position = UDim2.new(0, 0, 0.4, 0), BorderSizePixel = 0 })
+make("Frame", { Parent = accentBar, BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, 0, 0.6, 0),
+	Position = UDim2.new(0, 0, 0.4, 0), BorderSizePixel = 0 }, { make("UIGradient", { Color = SUNSET }) })
 
 -- header area with subtle tint
-local headerBg = make("Frame", { Parent = card, BackgroundColor3 = Color3.fromRGB(20, 19, 23),
+local headerBg = make("Frame", { Parent = card, BackgroundColor3 = Color3.fromRGB(36, 24, 55),
 	Size = UDim2.new(1, 0, 0, 76), Position = UDim2.new(0, 0, 0, 4), BorderSizePixel = 0 })
 
 -- logo chip
-local logo = make("Frame", { Parent = headerBg, BackgroundColor3 = PURPLE, Size = UDim2.new(0, 42, 0, 42),
+local logo = make("Frame", { Parent = headerBg, BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(0, 42, 0, 42),
 	Position = UDim2.new(0, 18, 0, 18) })
 round(logo, 12)
+sunset(logo, 45)
 stroke(logo, BORDERGLOW, 1)
-make("TextLabel", { Parent = logo, BackgroundTransparency = 1, Text = "Y", Font = Enum.Font.GothamBlack,
-	TextSize = 24, TextColor3 = WHITE, Size = UDim2.new(1, 0, 1, 0) })
+make("TextLabel", { Parent = logo, BackgroundTransparency = 1, Text = "Y", Font = Enum.Font.FredokaOne,
+	TextSize = 24, TextColor3 = Color3.fromRGB(30, 20, 48), Size = UDim2.new(1, 0, 1, 0) })
 
 -- title + subtitle
 make("TextLabel", { Parent = headerBg, BackgroundTransparency = 1, Text = "MM2 TRADE CONTROLLER",
-	Font = Enum.Font.GothamBold, TextSize = 15, TextColor3 = PURPLE, TextXAlignment = Enum.TextXAlignment.Left,
+	Font = Enum.Font.FredokaOne, TextSize = 15, TextColor3 = WHITE, TextXAlignment = Enum.TextXAlignment.Left,
 	Position = UDim2.new(0, 72, 0, 19), Size = UDim2.new(1, -120, 0, 18) })
-make("TextLabel", { Parent = headerBg, BackgroundTransparency = 1, Text = "TRADE SCAM / FREEZE TRADE",
-	Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = GRAY, TextXAlignment = Enum.TextXAlignment.Left,
+make("TextLabel", { Parent = headerBg, BackgroundTransparency = 1, Text = "SUMMER EDITION · TRADE TOOLS",
+	Font = Enum.Font.Gotham, TextSize = 10, TextColor3 = CORAL, TextXAlignment = Enum.TextXAlignment.Left,
 	Position = UDim2.new(0, 72, 0, 40), Size = UDim2.new(1, -120, 0, 13) })
 
 -- minimize button
@@ -113,7 +134,7 @@ local function row(glyph, title, default, cb)
 	round(r, 14); stroke(r, BORDER, 1)
 
 	-- chip
-	local chip = make("Frame", { Parent = r, BackgroundColor3 = Color3.fromRGB(32, 30, 38), Size = UDim2.new(0, 40, 0, 40),
+	local chip = make("Frame", { Parent = r, BackgroundColor3 = Color3.fromRGB(48, 32, 68), Size = UDim2.new(0, 40, 0, 40),
 		Position = UDim2.new(0, 14, 0.5, -20) })
 	round(chip, 12); stroke(chip, BORDERGLOW, 1)
 	make("TextLabel", { Parent = chip, BackgroundTransparency = 1, Text = glyph, Font = Enum.Font.GothamBold,
@@ -126,26 +147,27 @@ local function row(glyph, title, default, cb)
 		Position = UDim2.new(0, 66, 0, 16), Size = UDim2.new(1, -130, 0, 20) })
 	local st = make("TextLabel", { Parent = r, BackgroundTransparency = 1,
 		Text = default and "● Active" or "○ Inactive",
-		Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = default and GREEN or GRAY,
+		Font = Enum.Font.Gotham, TextSize = 11, TextColor3 = default and AQUA or GRAY,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Position = UDim2.new(0, 66, 0, 40), Size = UDim2.new(1, -130, 0, 14) })
 
-	-- pill toggle
+	-- pill toggle (sunset gradient lights up when on, dims to OFF when off)
 	local state = default or false
-	local pill = make("TextButton", { Parent = r, BackgroundColor3 = state and PURPLE or OFF,
+	local pill = make("TextButton", { Parent = r, BackgroundColor3 = state and Color3.new(1, 1, 1) or OFF,
 		Size = UDim2.new(0, 52, 0, 28), Position = UDim2.new(1, -66, 0.5, -14), Text = "", AutoButtonColor = false })
 	round(pill, 14)
+	sunset(pill)
 	local knob = make("Frame", { Parent = pill, BackgroundColor3 = WHITE, Size = UDim2.new(0, 20, 0, 20),
 		Position = state and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10) })
 	round(knob, 10)
 
 	local function flip()
 		state = not state
-		tween(pill, { BackgroundColor3 = state and PURPLE or OFF })
+		tween(pill, { BackgroundColor3 = state and Color3.new(1, 1, 1) or OFF })
 		tween(knob, { Position = state and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10) })
-		tween(r, { BackgroundColor3 = state and Color3.fromRGB(30, 29, 35) or ROW })
+		tween(r, { BackgroundColor3 = state and ROWON or ROW })
 		st.Text = state and "● Active" or "○ Inactive"
-		st.TextColor3 = state and GREEN or GRAY
+		st.TextColor3 = state and AQUA or GRAY
 		pcall(cb, state)
 	end
 	pill.MouseButton1Click:Connect(flip)
@@ -157,7 +179,7 @@ make("Frame", { Parent = card, BackgroundColor3 = BORDER, Size = UDim2.new(1, -3
 	Position = UDim2.new(0, 16, 1, -58), BorderSizePixel = 0 })
 
 -- footer
-make("TextLabel", { Parent = card, BackgroundTransparency = 1, Text = "Made by Yomogi Scripts",
+make("TextLabel", { Parent = card, BackgroundTransparency = 1, Text = "Made by Yomogi Scripts ☀",
 	Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = WHITE, AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, -30), Size = UDim2.new(1, 0, 0, 18) })
 make("TextLabel", { Parent = card, BackgroundTransparency = 1, Text = "YT: Yomogi Scripts",
@@ -182,10 +204,10 @@ do
 end
 
 -- minimize orb
-local orb = make("TextButton", { Parent = gui, BackgroundColor3 = PURPLE, Size = UDim2.new(0, 48, 0, 48),
-	Position = UDim2.new(0, 20, 0, 120), Text = "Y", Font = Enum.Font.GothamBlack, TextSize = 24,
-	TextColor3 = WHITE, Visible = false, AutoButtonColor = false })
-round(orb, 14); stroke(orb, BORDERGLOW, 1)
+local orb = make("TextButton", { Parent = gui, BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(0, 48, 0, 48),
+	Position = UDim2.new(0, 20, 0, 120), Text = "🌴", Font = Enum.Font.FredokaOne, TextSize = 24,
+	TextColor3 = Color3.fromRGB(30, 20, 48), Visible = false, AutoButtonColor = false })
+round(orb, 14); sunset(orb, 45); stroke(orb, BORDERGLOW, 1)
 do
 	local dg, ds, sp
 	orb.InputBegan:Connect(function(i)
@@ -239,9 +261,9 @@ if StartTrade then
 	end)
 end
 
-row("+", "Freeze Trade",          false, function(s) Guard.antiFreeze = s end)
-row("*", "Auto Accept",           false, function(s) Guard.autoDecline = s end)
-row("$", "Force Give All Weapon", false, function(s) Guard.alerts     = s end)
+row("🧊", "Freeze Trade",          false, function(s) Guard.antiFreeze = s end)
+row("🌊", "Auto Accept",           false, function(s) Guard.autoDecline = s end)
+row("🌴", "Force Give All Weapon", false, function(s) Guard.alerts     = s end)
 
 if not TradeFolder then notify("Trade system not found - load in MM2") end
 
