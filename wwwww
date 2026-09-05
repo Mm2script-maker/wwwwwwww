@@ -23,6 +23,245 @@ local getgenv = getgenv or function() return _G end
 local CurrentCamera = Workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
 
+-- ===== Loading splash =====
+-- Built from raw Instances on purpose: it has to be on screen BEFORE the UI
+-- library is fetched, since that download is the slowest part of startup and
+-- until now it happened behind a completely frozen screen. Brand colours are
+-- repeated here rather than read from the `Brand` table further down, because
+-- that table doesn't exist yet at this point in the chunk.
+local YoSplash = (function()
+	local api = { set = function() end, done = function() end }
+
+	pcall(function()
+		local TweenService = game:GetService("TweenService")
+		local gold, rose = Color3.fromRGB(233, 196, 132), Color3.fromRGB(201, 141, 158)
+
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "YomogiSplash"
+		gui.IgnoreGuiInset = true
+		gui.ResetOnSpawn = false
+		gui.DisplayOrder = 2147483647
+		if not pcall(function()
+			gui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+		end) then
+			gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+		end
+
+		local dim = Instance.new("Frame")
+		dim.Size = UDim2.fromScale(1, 1)
+		dim.BackgroundColor3 = Color3.fromRGB(5, 4, 3)
+		dim.BackgroundTransparency = 0.2
+		dim.BorderSizePixel = 0
+		dim.Parent = gui
+
+		local card = Instance.new("Frame")
+		card.AnchorPoint = Vector2.new(0.5, 0.5)
+		card.Position = UDim2.fromScale(0.5, 0.5)
+		card.Size = UDim2.fromOffset(300, 100)   -- tweened up to full size below
+		card.BackgroundColor3 = Color3.fromRGB(18, 14, 11)
+		card.BorderSizePixel = 0
+		card.Parent = dim
+		Instance.new("UICorner", card).CornerRadius = UDim.new(0, 16)
+
+		-- pop the card in instead of having it appear fully formed
+		TweenService:Create(card, TweenInfo.new(0.45, Enum.EasingStyle.Back,
+			Enum.EasingDirection.Out), {
+			Size = UDim2.fromOffset(380, 210)
+		}):Play()
+
+		local stroke = Instance.new("UIStroke", card)
+		stroke.Thickness = 1.5
+		stroke.Transparency = 0.25
+		local sg = Instance.new("UIGradient", stroke)
+		sg.Color = ColorSequence.new(gold, rose)
+		sg.Rotation = 25
+
+		local title = Instance.new("TextLabel")
+		title.BackgroundTransparency = 1
+		title.Position = UDim2.fromOffset(0, 26)
+		title.Size = UDim2.new(1, 0, 0, 34)
+		title.Text = "YOMOGI"
+		title.TextSize = 30
+		title.TextColor3 = Color3.new(1, 1, 1)
+		title.FontFace = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Bold)
+		title.Parent = card
+		local tg = Instance.new("UIGradient", title)
+		tg.Color = ColorSequence.new(gold, rose)
+
+		local status = Instance.new("TextLabel")
+		status.BackgroundTransparency = 1
+		status.Position = UDim2.fromOffset(0, 62)
+		status.Size = UDim2.new(1, 0, 0, 18)
+		status.Text = "Starting up"
+		status.TextSize = 13
+		status.TextColor3 = Color3.fromRGB(176, 158, 138)
+		status.FontFace = Font.new("rbxasset://fonts/families/Nunito.json")
+		status.Parent = card
+
+		-- percentage, so a slow stage still shows visible movement
+		local pct = Instance.new("TextLabel")
+		pct.BackgroundTransparency = 1
+		pct.Position = UDim2.fromOffset(0, 82)
+		pct.Size = UDim2.new(1, 0, 0, 16)
+		pct.Text = "4%"
+		pct.TextSize = 11
+		pct.TextColor3 = Color3.fromRGB(120, 106, 92)
+		pct.FontFace = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Bold)
+		pct.Parent = card
+
+		local track = Instance.new("Frame")
+		track.AnchorPoint = Vector2.new(0.5, 0)
+		track.Position = UDim2.new(0.5, 0, 0, 106)
+		track.Size = UDim2.fromOffset(300, 6)
+		track.BackgroundColor3 = Color3.fromRGB(48, 39, 32)
+		track.BorderSizePixel = 0
+		track.Parent = card
+		Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+		local fill = Instance.new("Frame")
+		fill.Size = UDim2.fromScale(0.04, 1)
+		fill.BackgroundColor3 = gold
+		fill.BorderSizePixel = 0
+		fill.Parent = track
+		Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+		local fg = Instance.new("UIGradient", fill)
+		fg.Color = ColorSequence.new(gold, rose)
+
+		-- Rotating tip line. A splash that shows one frozen string for six
+		-- seconds reads as hung even when it isn't -- this gives the wait
+		-- something to look at and makes the load feel shorter than it is.
+		local tip = Instance.new("TextLabel")
+		tip.AnchorPoint = Vector2.new(0.5, 0)
+		tip.BackgroundTransparency = 1
+		tip.Position = UDim2.new(0.5, 0, 0, 132)
+		tip.Size = UDim2.new(1, -32, 0, 52)
+		tip.Text = ""
+		tip.TextSize = 12
+		tip.TextWrapped = true
+		tip.TextColor3 = Color3.fromRGB(148, 132, 116)
+		tip.FontFace = Font.new("rbxasset://fonts/families/Nunito.json")
+		tip.Parent = card
+
+		local FACTS = {
+			"Tip: Wide Range Collect grabs from 34 studs instead of 14.",
+			"Tip: Spin adds +16 studs of reach on top of Wide Range.",
+			"Fun fact: MM2 launched in 2014 and has over 10 billion visits.",
+			"Tip: 27 studs/s is the sweet spot — fast, but the server still credits every coin.",
+			"Tip: Avoid Murderer keeps you 40 studs clear while farming.",
+			"Fun fact: Coins only spawn during an active round, never in the lobby.",
+			"Tip: Hide My Body is client-side — other players still see you normally.",
+			"Tip: The farm auto-pauses when your coin bag is full, then resumes next round.",
+			"Fun fact: The rarest MM2 knife, Chroma Luger, comes from a 1-in-a-million unbox.",
+			"Tip: Noclip runs every frame, so walls never block a pickup.",
+			"Fun fact: Godly knives have a 1% unbox chance from a standard box.",
+			"Tip: Press the toggle key any time to hide or show this menu.",
+			"Fun fact: A full MM2 round runs about two minutes.",
+			"Tip: Raise the speed slider to 150 if you'd rather sprint between coins.",
+		}
+		-- Fisher-Yates so a session doesn't always open on the same tip
+		for i = #FACTS, 2, -1 do
+			local j = math.random(1, i)
+			FACTS[i], FACTS[j] = FACTS[j], FACTS[i]
+		end
+
+		local alive, fi = true, 0
+		task.spawn(function()
+			while alive do
+				fi = fi % #FACTS + 1
+				pcall(function()
+					tip.Text = FACTS[fi]
+					tip.TextTransparency = 1
+					TweenService:Create(tip, TweenInfo.new(0.4), { TextTransparency = 0 }):Play()
+				end)
+				task.wait(2.6)
+				if not alive then break end
+				pcall(function()
+					TweenService:Create(tip, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+				end)
+				task.wait(0.3)
+			end
+		end)
+
+		-- Shimmer sweeping across the bar: the clearest "still working" signal
+		-- there is, and it keeps moving even while a stage is stalled.
+		task.spawn(function()
+			while alive do
+				pcall(function()
+					fg.Offset = Vector2.new(-1, 0)
+					TweenService:Create(fg, TweenInfo.new(1.4, Enum.EasingStyle.Linear), {
+						Offset = Vector2.new(1, 0)
+					}):Play()
+				end)
+				task.wait(1.5)
+			end
+		end)
+		fg.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, gold),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 240, 210)),
+			ColorSequenceKeypoint.new(1, rose),
+		})
+
+		-- the bar only ever moves forward, so a stall never looks like a rewind
+		local shown = 0.04
+		local function to(v)
+			if v <= shown then
+				return
+			end
+			shown = v
+			TweenService:Create(fill, TweenInfo.new(0.35, Enum.EasingStyle.Quad), {
+				Size = UDim2.fromScale(v, 1)
+			}):Play()
+			pcall(function() pct.Text = math.floor(v * 100 + 0.5) .. "%" end)
+		end
+
+		api._stop = function() alive = false end
+
+		function api.set(text, v)
+			pcall(function()
+				if text then status.Text = text end
+				if v then to(v) end
+			end)
+		end
+
+		function api.done()
+			pcall(function()
+				alive = false          -- stop the tip + shimmer loops
+				api.set("Ready", 1)
+				task.delay(0.25, function()
+					pcall(function()
+						TweenService:Create(dim, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
+						TweenService:Create(card, TweenInfo.new(0.4), { BackgroundTransparency = 1 }):Play()
+						for _, d in ipairs(card:GetDescendants()) do
+							if d:IsA("TextLabel") then
+								TweenService:Create(d, TweenInfo.new(0.3), { TextTransparency = 1 }):Play()
+							elseif d:IsA("Frame") then
+								TweenService:Create(d, TweenInfo.new(0.3), { BackgroundTransparency = 1 }):Play()
+							elseif d:IsA("UIStroke") then
+								TweenService:Create(d, TweenInfo.new(0.3), { Transparency = 1 }):Play()
+							end
+						end
+						task.delay(0.5, function()
+							pcall(function() gui:Destroy() end)
+						end)
+					end)
+				end)
+			end)
+		end
+
+		-- failsafe: never leave a full-screen overlay stuck if a later stage errors
+		task.delay(25, function()
+			pcall(function()
+				alive = false
+				if gui.Parent then gui:Destroy() end
+			end)
+		end)
+	end)
+
+	return api
+end)()
+
+YoSplash.set("Fetching UI library", 0.15)
+
 -- Loud loader. This used to be a bare
 --   loadstring(game:HttpGet(url))()
 -- so ANY failure — HttpGet blocked, endpoint down, no loadstring — killed
@@ -32,6 +271,9 @@ local _Raw
 do
 	local function fail(reason)
 		warn("[Yomogi Scripts] " .. reason)
+		-- clear the overlay first, or a load failure leaves a full-screen
+		-- splash covering the game with no way to dismiss it
+		pcall(function() YoSplash.done() end)
 		-- SetCore works without the UI library, which is the whole point:
 		-- the library is what failed to load.
 		pcall(function()
@@ -73,6 +315,8 @@ do
 
 	_Raw = result
 end
+
+YoSplash.set("Building interface", 0.55)
 
 -- Yomogi Scripts -- hand-built dark palettes (cloned from Sky, recolored).
 -- Registered in order; the first one is the default and all of them are
@@ -394,6 +638,8 @@ do
 		ShowTabTitle = true
 	})
 end
+
+YoSplash.set("Loading tabs", 0.7)
 
 local s2 = "Unknown"
 
@@ -1530,11 +1776,17 @@ do
 			t11 = p27 or {}
 		end
 	})
+	-- Refresh throws "Frame is not a valid member of ImageLabel" from inside the
+	-- Rubis library (its own Refresh, not ours) and floods the console. Unwrapped
+	-- it also took the REST of the PlayerRemoving handler with it, so the stale
+	-- selection below never got pruned and killing a selected player who had left
+	-- silently no-op'd. The dropdown repaint is still the library's bug; this just
+	-- stops it from breaking our handlers.
 	Players4.PlayerAdded:Connect(function()
-		u82:Refresh(u80())
+		pcall(function() u82:Refresh(u80()) end)
 	end)
 	Players4.PlayerRemoving:Connect(function()
-		u82:Refresh(u80())
+		pcall(function() u82:Refresh(u80()) end)
 
 		local t12 = {}
 
@@ -1545,9 +1797,9 @@ do
 		end
 
 		t11 = t12
-		u82:Select(t12)
+		pcall(function() u82:Select(t12) end)
 	end)
-	u82:Refresh(u80())
+	pcall(function() u82:Refresh(u80()) end)
 	t1.MurdTab:Button({
 		Title = "Kill Selected Players",
 		Description = "Kills only the players selected in the dropdown.",
@@ -3065,7 +3317,7 @@ local function u138(p71)
 		end
 	end
 
-	p71:Refresh(t22)
+	pcall(function() p71:Refresh(t22) end)
 end
 
 local u139 = t1.TrollingTab:Dropdown({
@@ -3535,7 +3787,7 @@ do
 				})
 			end
 
-			u150:Refresh(ConfigManager:AllConfigs())
+			pcall(function() u150:Refresh(ConfigManager:AllConfigs()) end)
 		end
 	})
 	v143:Button({
@@ -3629,22 +3881,55 @@ do
 		end
 	end
 
-	repeat
-		task.wait(1)
-		pcall(function()
-			TapUI(LocalPlayer12.PlayerGui.DeviceSelect.Container.Tablet.Button)
-		end)
-		pcall(function()
-			TapUI(game:GetService("Players").LocalPlayer.PlayerGui.Join.Friends.Play)
-		end)
-	until LocalPlayer12.PlayerGui:FindFirstChild("MainGUI")
+	-- Loader. Both of these used to be unbounded blocking loops on the MAIN
+	-- thread, and everything below them -- Config, and critically the auto-farm
+	-- Heartbeat connection ~2000 lines down -- only runs once they exit:
+	--
+	--   * the first paid a full task.wait(1) at the TOP of each pass, so it
+	--     cost a minimum of one second even when MainGUI already existed;
+	--   * the second spun until require(TradeModule) succeeded, with no exit.
+	--     Inject before ReplicatedStorage.Modules replicates and it never
+	--     returns -- the hub looks "loaded" (the window is already up) while
+	--     every feature defined after this point silently does not exist.
+	--
+	-- Both are now bounded and poll at 20Hz, and the GUI taps moved off the
+	-- critical path into their own thread.
+	local function yoWaitFor(check, timeout, step)
+		local deadline = os.clock() + (timeout or 10)
+		repeat
+			local ok, v = pcall(check)
+			if ok and v then
+				return v
+			end
+			task.wait(step or 0.05)
+		until os.clock() > deadline
+		return nil
+	end
 
-	repeat
-		fr = pcall(function()
-			require(game:GetService("ReplicatedStorage").Modules.TradeModule)
-		end)
-		task.wait()
-	until fr
+	task.spawn(function()
+		for _ = 1, 20 do
+			if LocalPlayer12.PlayerGui:FindFirstChild("MainGUI") then
+				return
+			end
+			pcall(function()
+				TapUI(LocalPlayer12.PlayerGui.DeviceSelect.Container.Tablet.Button)
+			end)
+			pcall(function()
+				TapUI(LocalPlayer12.PlayerGui.Join.Friends.Play)
+			end)
+			task.wait(0.25)
+		end
+	end)
+
+	yoWaitFor(function()
+		return LocalPlayer12.PlayerGui:FindFirstChild("MainGUI")
+	end, 12, 0.05)
+
+	-- Only the trade features need this module, so a timeout here degrades
+	-- those rather than taking the whole hub down with it.
+	fr = yoWaitFor(function()
+		return require(game:GetService("ReplicatedStorage").Modules.TradeModule)
+	end, 8, 0.05) ~= nil
 
 	DefaultConfig = {
 		AutoRevealRoles = false,
@@ -3701,10 +3986,21 @@ do
 				LoopFlingAllPlayers = false
 			}
 		},
-		Sliders = {
-			Speed = LocalPlayer12.Character.Humanoid.WalkSpeed,
-			Jump = LocalPlayer12.Character.Humanoid.JumpPower
-		},
+		-- Raw-indexing Character.Humanoid here threw "attempt to index nil"
+		-- whenever the hub loaded before the character spawned. That aborts the
+		-- whole DefaultConfig constructor, so Config below is never assigned and
+		-- every statement left in this block is skipped -- the same failure mode
+		-- as the loader loops above, and the reason startAutoFarm() could hit a
+		-- nil Config.
+		Sliders = (function()
+			local ok, hum = pcall(function()
+				return LocalPlayer12.Character:FindFirstChildOfClass("Humanoid")
+			end)
+			if ok and hum then
+				return { Speed = hum.WalkSpeed, Jump = hum.JumpPower }
+			end
+			return { Speed = 16, Jump = 50 }
+		end)(),
 		AutoOpenCrates = {
 			State = false,
 			Crate = "MysteryBox1",
@@ -5841,6 +6137,50 @@ local function yoBagFull()
 	return type(RNcoins) == "number" and type(MAXcoins) == "number" and MAXcoins > 0 and RNcoins >= MAXcoins
 end
 
+-- Anything solid sitting in a CoinContainer is a pickup. The old test also
+-- required a literal TouchInterest child, which is created lazily and is hidden
+-- from scripts in some Roblox builds -- when it is missing this filter matches
+-- ZERO coins and the farm flies to spawn forever, looking exactly like "it
+-- doesn't pick anything up". firetouchinterest works regardless, so the gate
+-- bought nothing. Kept the CollectedCoin check, which is the real "already
+-- taken" marker.
+local function yoIsCoin(c)
+	return c:IsA("BasePart") and not c:FindFirstChild("CollectedCoin")
+end
+
+-- Am I actually alive and playing this round? Health > 0 alone isn't enough:
+-- after you're killed the corpse lingers with positive health for a moment, and
+-- in the lobby you have a perfectly healthy character that isn't in the round at
+-- all -- in both cases the farm happily flew the body at coins. The role remote
+-- is a server round-trip so it's polled once a second and cached; the farm loop
+-- only ever reads the flag.
+YoFarm._alive = true
+if not YoFarm._aliveLoop then
+	YoFarm._aliveLoop = true
+	task.spawn(function()
+		local RS = game:GetService("ReplicatedStorage")
+		local lp = game:GetService("Players").LocalPlayer
+		while true do
+			local ok, data = pcall(function()
+				local rf = RS:FindFirstChild("GetCurrentPlayerData", true)
+				if rf and rf:IsA("RemoteFunction") then
+					return rf:InvokeServer()
+				end
+			end)
+			if ok and type(data) == "table" then
+				local me = data[lp.Name]
+				-- me == nil means we're not in the round (lobby / spectating)
+				YoFarm._alive = (me ~= nil) and not (me.Killed or me.Dead)
+			else
+				-- couldn't read it: don't let a remote hiccup disable the farm,
+				-- fall back to the plain health check in the loop
+				YoFarm._alive = true
+			end
+			task.wait(1)
+		end
+	end)
+end
+
 local function yoNearestCoin(pos)
 	local best, bestD = nil, math.huge
 	for _, m in ipairs(workspace:GetChildren()) do
@@ -5848,7 +6188,7 @@ local function yoNearestCoin(pos)
 			local cc = m:FindFirstChild("CoinContainer")
 			if cc then
 				for _, c in ipairs(cc:GetChildren()) do
-					if c.Name == "Coin_Server" and c:FindFirstChild("TouchInterest") and not c:FindFirstChild("CollectedCoin") then
+					if yoIsCoin(c) then
 						local d = (pos - c.Position).Magnitude
 						if d < bestD then
 							bestD = d
@@ -5862,6 +6202,9 @@ local function yoNearestCoin(pos)
 	return best
 end
 
+-- No longer used by the farm loop: flying to a "Spawns" model at round start
+-- was picking the lobby spawn and hauling the character out of the map. Kept
+-- only so any other caller keeps working.
 local function yoSpawnCF()
 	for _, m in ipairs(workspace:GetChildren()) do
 		if m:IsA("Model") and m:FindFirstChild("Spawns") then
@@ -5876,20 +6219,30 @@ end
 
 -- Smooth "float" farm: anchors the root and glides (tweens) to each coin so it
 -- looks clean and never falls through the map. YoFarm.speed = studs/second.
+-- Both of these used to touch the global Config BEFORE setting YoFarm.active.
+-- Config is assigned far upstream and any of the load-time failures fixed above
+-- would leave it nil, so this indexed nil, the toggle callback threw, and
+-- .active was never set -- the switch flipped in the UI and the farm did
+-- nothing at all. The flag is now set first and the legacy engines are only
+-- nudged off as a best effort.
 local function startAutoFarm()
-	Config.CoinFarm.State = false
-	Config.CoinFarm2.State = false
-	Config.CoinFarm3.State = false
 	YoFarm.active = true
+	pcall(function()
+		Config.CoinFarm.State = false
+		Config.CoinFarm2.State = false
+		Config.CoinFarm3.State = false
+	end)
 end
 
 local function stopAutoFarm()
 	YoFarm.active = false
-	Config.CoinFarm.State = false
-	Config.CoinFarm2.State = false
-	Config.CoinFarm3.State = false
+	pcall(function()
+		Config.CoinFarm.State = false
+		Config.CoinFarm2.State = false
+		Config.CoinFarm3.State = false
+	end)
 
-	local char, hrp = yoCharParts()
+	local char, hrp, hum = yoCharParts()
 	if hrp then
 		hrp.Anchored = false
 		local bv = hrp:FindFirstChild("YoFarmBV")
@@ -5901,6 +6254,15 @@ local function stopAutoFarm()
 			spin:Destroy()
 		end
 	end
+	-- give walking control back; without this you stay in the flight state and
+	-- can't move normally after switching the farm off
+	if hum then
+		hum.PlatformStand = false
+	end
+	YoFarm._lastBest = nil
+	YoFarm._lastProgress = nil
+	YoFarm._prevCount = nil
+	YoFarm._bl = {}
 	if char then
 		for _, p in ipairs(char:GetDescendants()) do
 			if p:IsA("BasePart") then
@@ -5922,11 +6284,34 @@ game:GetService("RunService").Heartbeat:Connect(function()
 	local char, hrp, hum = yoCharParts()
 	if not (char and hrp and hum and hum.Health > 0) then return end
 
+	-- Dead, spectating, or sitting in the lobby: stop flying the body at coins.
+	-- Tear the mover down and hand walking back rather than just returning, or
+	-- you stay stuck in the flight state until the next round.
+	if YoFarm._alive == false then
+		local oldBv = hrp:FindFirstChild("YoFarmBV")
+		if oldBv then oldBv:Destroy() end
+		-- kill the spinner too, or you keep rotating in the lobby
+		local oldSpin = hrp:FindFirstChild("YoFarmSpin")
+		if oldSpin then oldSpin:Destroy() end
+		if hum.PlatformStand then hum.PlatformStand = false end
+		return
+	end
+
 	if hrp.Anchored then hrp.Anchored = false end
 
 	-- noclip every frame so walls never block coin pickup
 	for _, p in ipairs(char:GetDescendants()) do
 		if p:IsA("BasePart") and p.CanCollide then p.CanCollide = false end
+	end
+
+	-- Per-character state reset. Dying mid-round otherwise carries a blacklist
+	-- and a _lastBest full of parts from the previous life into the new one.
+	if YoFarm._char ~= char then
+		YoFarm._char = char
+		YoFarm._bl = {}
+		YoFarm._lastBest = nil
+		YoFarm._lastProgress = nil
+		YoFarm._prevCount = nil
 	end
 
 	-- keep a single BodyVelocity alive on the HRP
@@ -5939,9 +6324,40 @@ game:GetService("RunService").Heartbeat:Connect(function()
 		bv.Parent   = hrp
 	end
 
-	-- bag full: stop moving but stay active (resumes next round automatically)
+	-- Spin ("far vacuum"). The toggle used to only set a flag -- nothing ever
+	-- created a spinner, so it did nothing at all. Torque is constrained to the
+	-- Y axis on purpose: an unconstrained BodyAngularVelocity tumbles the
+	-- character end over end the moment it clips scenery, which is exactly the
+	-- "spins out of control on walls" the toggle promises to avoid.
+	local spinner = hrp:FindFirstChild("YoFarmSpin")
+	if YoFarm.spin then
+		if not spinner then
+			spinner = Instance.new("BodyAngularVelocity")
+			spinner.Name      = "YoFarmSpin"
+			spinner.MaxTorque = Vector3.new(0, 1e9, 0)
+			spinner.P         = 1e5
+			spinner.Parent    = hrp
+		end
+		spinner.AngularVelocity = Vector3.new(0, 18, 0)
+	elseif spinner then
+		spinner:Destroy()
+	end
+
+	-- The Humanoid runs its own movement while the BodyVelocity flies us, and
+	-- the two fight each other. As soon as the character brushes real geometry
+	-- the walking state wins: the mover keeps pushing while the character stays
+	-- planted or grinds along a wall. That is the "farms fine for a while, then
+	-- just stops" case -- it needs no error and leaves everything looking
+	-- healthy. PlatformStand makes the mover authoritative; stopAutoFarm and the
+	-- bag-full branch both put it back.
+	if not hum.PlatformStand then hum.PlatformStand = true end
+
+	-- bag full: stop moving but stay active (resumes next round automatically).
+	-- Hand normal movement back while we wait, or you're left frozen mid-air
+	-- with PlatformStand on and no way to walk until the next round.
 	if yoBagFull() then
 		bv.Velocity = Vector3.zero
+		if hum.PlatformStand then hum.PlatformStand = false end
 		return
 	end
 
@@ -5964,23 +6380,45 @@ game:GetService("RunService").Heartbeat:Connect(function()
 
 	local pos   = hrp.Position
 	local speed = math.max(YoFarm.speed, 20)
-	local best, bestD = nil, math.huge
+	local best, bestD, candidates = nil, math.huge, 0
+
+	-- Grab radius. YoFarm.wide was read nowhere -- the sweep below was pinned at
+	-- 14 studs whether the toggle was on or off, so "Wide Range Collect" did
+	-- nothing. 14 stays the always-on range because it is what the server
+	-- reliably credits; the wider sweep is throttled to every 3rd frame so we
+	-- don't repeat the old 55-stud version's mistake of firing hundreds of
+	-- touches a second that the server just discards.
+	local grabR = 14
+	if YoFarm.wide then grabR = 34 end
+	if YoFarm.spin then grabR = grabR + 16 end
+	YoFarm._tick = (YoFarm._tick or 0) + 1
+	local wideSweep = grabR > 14 and (YoFarm._tick % 3 == 0)
 
 	for _, m in ipairs(workspace:GetChildren()) do
 		if m:IsA("Model") then
 			local cc = m:FindFirstChild("CoinContainer")
 			if cc then
 				for _, c in ipairs(cc:GetChildren()) do
-					if c.Name == "Coin_Server"
-						and c:FindFirstChild("TouchInterest")
-						and not c:FindFirstChild("CollectedCoin")
+					if yoIsCoin(c)
 						and not YoFarm._bl[c]
 						and not (murderPos and (c.Position - murderPos).Magnitude < YoFarm.avoidDist)
 					then
 						local d = (pos - c.Position).Magnitude
-						if d < bestD then bestD = d; best = c end
-						-- fire touch for every coin already close
-						if d < 55 then
+						candidates = candidates + 1
+						-- Never chase across the world. MM2 maps are a few
+						-- hundred studs, so anything past 600 belongs to the
+						-- lobby or a map that hasn't unloaded -- flying at one
+						-- is the other way the farm ends up outside the map.
+						if d < bestD and d <= 600 then bestD = d; best = c end
+						-- Sweep up anything we're passing near. This used to fire
+						-- at 55 studs, for every coin, every frame -- hundreds of
+						-- touch calls a second. The server won't credit a pickup
+						-- from that far away, so it was pure noise competing with
+						-- the touches that could actually have counted.
+						if d < 14 then
+							pcall(firetouchinterest, hrp, c, 0)
+							pcall(firetouchinterest, hrp, c, 1)
+						elseif wideSweep and d < grabR then
 							pcall(firetouchinterest, hrp, c, 0)
 							pcall(firetouchinterest, hrp, c, 1)
 						end
@@ -5990,10 +6428,12 @@ game:GetService("RunService").Heartbeat:Connect(function()
 		end
 	end
 
-	-- stuck detection: same coin, very close, hasn't collected in 0.4 s → blacklist 2 s
+	-- stuck detection: same coin, very close, still not collected → blacklist 2 s.
+	-- Widened to match the new 2-stud arrival and given a longer fuse: at 0.4 s
+	-- it was blacklisting coins the server simply hadn't credited yet.
 	if best then
-		if best == YoFarm._lastBest and bestD < 4 then
-			if now - (YoFarm._lastBestT or now) > 0.4 then
+		if best == YoFarm._lastBest and bestD < 6 then
+			if now - (YoFarm._lastBestT or now) > 1.2 then
 				YoFarm._bl[best] = now + 2
 				YoFarm._lastBest = nil
 				best = nil
@@ -6004,38 +6444,71 @@ game:GetService("RunService").Heartbeat:Connect(function()
 		end
 	end
 
+	-- Stall watchdog. The per-coin blacklist above only ever handles one bad
+	-- coin at a time -- it can't notice that we're wedged in scenery, that the
+	-- BodyVelocity got stripped, or that the blacklist has swallowed every
+	-- candidate at once. If coins are on the map and the candidate count hasn't
+	-- moved for 6 s, nothing is being collected: drop the accumulated state,
+	-- rebuild the mover and hop up a few studs to break free, instead of
+	-- hovering in place for the rest of the round.
+	YoFarm._lastProgress = YoFarm._lastProgress or now
+	if candidates ~= YoFarm._prevCount then
+		YoFarm._prevCount = candidates
+		YoFarm._lastProgress = now
+		YoFarm._hops = 0          -- progress resumed: restore the hop budget
+	elseif candidates > 0 and now - YoFarm._lastProgress > 6 then
+		YoFarm._bl = {}
+		YoFarm._lastBest = nil
+		YoFarm._lastProgress = now
+		pcall(function() bv:Destroy() end)
+		-- The unhook hop is capped. It used to be an unconditional +8 studs on
+		-- every stall, so a repeatedly-stalling round stacked hop on hop and
+		-- walked the character up and out of the map. Three small hops is
+		-- plenty to clear real geometry; past that, hopping is not the problem.
+		YoFarm._hops = (YoFarm._hops or 0) + 1
+		if YoFarm._hops <= 3 then
+			pcall(function() hrp.CFrame = hrp.CFrame + Vector3.new(0, 4, 0) end)
+		end
+		return
+	end
+
 	if murderPos and (pos - murderPos).Magnitude < YoFarm.avoidDist then
 		-- flee murderer
 		local away = (pos - murderPos)
 		if away.Magnitude < 0.1 then away = Vector3.new(1, 0, 0) end
 		bv.Velocity = away.Unit * speed
 	elseif best then
-		-- fly straight to the coin
 		local dir = best.Position - pos
-		if dir.Magnitude > 1 then
-			bv.Velocity = dir.Unit * speed
-		else
-			bv.Velocity = Vector3.zero
+		local dist = dir.Magnitude
+		-- Fire on approach, not only on arrival. At flight speed the character
+		-- crosses the pickup between two frames, so there may never BE a frame
+		-- where it counts as arrived -- which is how it ends up circling a coin
+		-- it never collects while the idle timer climbs.
+		if dist < grabR then
 			pcall(firetouchinterest, hrp, best, 0)
 			pcall(firetouchinterest, hrp, best, 1)
 		end
-	else
-		-- no coins found: fly to map spawn so we're always moving
-		local spawnCF = yoSpawnCF()
-		if spawnCF then
-			local dir = spawnCF.Position - pos
-			if dir.Magnitude > 8 then
-				bv.Velocity = dir.Unit * speed
-			else
-				bv.Velocity = Vector3.zero
-			end
+		if dist > 2 then
+			bv.Velocity = dir.Unit * speed
 		else
 			bv.Velocity = Vector3.zero
 		end
+	else
+		-- No coins in range (round just started, or the map is cleared).
+		-- This used to fly to the first workspace model with a "Spawns" child.
+		-- At round start that is frequently the LOBBY spawn rather than the
+		-- map's, so the farm dragged the character straight out of the map the
+		-- moment a match began. There is nothing to collect either way, so the
+		-- safe move is simply to hold position and wait for coins to appear.
+		bv.Velocity = Vector3.zero
 	end
 end)
 
-YoFarm.speed = 27  -- always boot at max speed
+-- 27 studs/s is both the default AND the ceiling now. Faster than this and the
+-- character crosses a pickup between two frames, so the server never credits
+-- it -- which reads as "the farm skips coins". Wide Range Collect and Spin are
+-- what close distance now, instead of raw speed.
+YoFarm.speed = 27
 
 t1.AutoFarmTab:Toggle({
 	Title = "Enable Auto Farm",
@@ -6052,7 +6525,7 @@ t1.AutoFarmTab:Toggle({
 })
 t1.AutoFarmTab:Slider({
 	Title = "Auto Farm Speed",
-	Desc = "Speed to coins — 27 is max and recommended",
+	Desc = "Studs per second between coins — 27 is the cap, past that the server drops pickups",
 	Step = 1,
 	Value = {
 		Min = 20,
@@ -6060,12 +6533,14 @@ t1.AutoFarmTab:Slider({
 		Default = 27
 	},
 	Callback = function(p128)
-		YoFarm.speed = p128
+		-- clamp: a saved config from the old 150-max slider would otherwise
+		-- restore an out-of-range speed
+		YoFarm.speed = math.clamp(p128, 20, 27)
 	end
 })
 t1.AutoFarmTab:Toggle({
 	Title = "Wide Range Collect",
-	Desc = "Grabs coins from a wider radius",
+	Desc = "Grabs coins from 34 studs instead of 14 — big speed boost per round",
 	Value = YoFarm.wide,
 	Callback = function(state)
 		YoFarm.wide = state
@@ -6073,7 +6548,7 @@ t1.AutoFarmTab:Toggle({
 })
 t1.AutoFarmTab:Toggle({
 	Title = "Spin (far vacuum)",
-	Desc = "Spins you and widens the grab range -- controlled, won't spin out of control on walls",
+	Desc = "Spins you and adds +16 studs of reach — Y-axis only, so walls won't tumble you",
 	Value = YoFarm.spin,
 	Callback = function(state)
 		YoFarm.spin = state
@@ -6261,6 +6736,54 @@ do
 		return mc and (mc:FindFirstChild("Head") or mc:FindFirstChild("HumanoidRootPart"))
 	end
 
+	-- ===== Wallbang =====
+	-- Silent Aim only ever targets the murderer. Wallbang targets whoever you
+	-- are actually pointing at. Neither does a line-of-sight raycast, and for
+	-- wallbang that omission IS the feature: the shot is sent as the remote's
+	-- target position, so geometry between you and them is never consulted.
+	getgenv().YoWallbang    = getgenv().YoWallbang or false
+	getgenv().YoWallbangFOV = getgenv().YoWallbangFOV or 40
+
+	local function wallbangTarget()
+		local cam = workspace.CurrentCamera
+		if not cam then return nil end
+		local origin = cam.CFrame.Position
+		local look   = cam.CFrame.LookVector
+		local best, bestAng = nil, math.rad(getgenv().YoWallbangFOV or 40)
+		for _, pl in ipairs(Players:GetPlayers()) do
+			if pl ~= LP and pl.Character then
+				local hum  = pl.Character:FindFirstChildOfClass("Humanoid")
+				local part = pl.Character:FindFirstChild("Head")
+					or pl.Character:FindFirstChild("HumanoidRootPart")
+				if hum and hum.Health > 0 and part then
+					local dir = part.Position - origin
+					local mag = dir.Magnitude
+					if mag > 0 then
+						-- angle between where the camera looks and the target
+						local ang = math.acos(math.clamp(look:Dot(dir / mag), -1, 1))
+						if ang < bestAng then
+							bestAng = ang
+							best    = part
+						end
+					end
+				end
+			end
+		end
+		return best
+	end
+
+	-- Silent Aim wins when both are on: it is the more specific request.
+	local function shotTarget()
+		if getgenv().YoSilentAim then
+			local mp = murdererPart()
+			if mp then return mp end
+		end
+		if getgenv().YoWallbang then
+			return wallbangTarget()
+		end
+		return nil
+	end
+
 	-- returns the gun tool + whether it's currently equipped (out)
 	local function gunTool()
 		local ch = LP.Character
@@ -6291,6 +6814,27 @@ do
 			getgenv().YoSilentAim = s
 		end
 	})
+	t1.SheriffTab:Toggle({
+		Title = "Wallbang (shoot through walls)",
+		Desc = "Hits whoever you're aiming at even through geometry — no line of sight needed",
+		Value = false,
+		Callback = function(s)
+			getgenv().YoWallbang = s
+		end
+	})
+	t1.SheriffTab:Slider({
+		Title = "Wallbang Aim FOV",
+		Desc = "How far off your crosshair a target can be, in degrees. Lower = more precise",
+		Step = 1,
+		Value = {
+			Min = 5,
+			Max = 90,
+			Default = 40
+		},
+		Callback = function(v)
+			getgenv().YoWallbangFOV = v
+		end
+	})
 
 	-- Gun OUT: the game fires the "Shoot" remote itself, so redirect its target to
 	-- the murderer. Narrowly scoped (only the equipped gun's Shoot event, only while
@@ -6299,13 +6843,13 @@ do
 		getgenv()._yoSilentHook = true
 		local oldNamecall
 		oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-			if getgenv().YoSilentAim then
+			if getgenv().YoSilentAim or getgenv().YoWallbang then
 				local newArgs
 				pcall(function(...)
 					if getnamecallmethod() == "FireServer" and self.Name == "Shoot" then
 						local parent = self.Parent
 						if parent and parent:IsA("Tool") then
-							local mp = murdererPart()
+							local mp = shotTarget()
 							if mp then
 								local args = { ... }
 								local changed = false
@@ -6336,7 +6880,7 @@ do
 	-- Gun HOLSTERED: the game won't fire it, so fire it ourselves on click. (When the
 	-- gun is out the hook above handles it, so we skip to avoid a double shot.)
 	UIS.InputBegan:Connect(function(input, gp)
-		if gp or not getgenv().YoSilentAim then
+		if gp or not (getgenv().YoSilentAim or getgenv().YoWallbang) then
 			return
 		end
 		if input.UserInputType ~= Enum.UserInputType.MouseButton1 then
@@ -6349,7 +6893,7 @@ do
 		local shoot = tool:FindFirstChild("Shoot")
 		local ch = LP.Character
 		local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-		local mp = murdererPart()
+		local mp = shotTarget()
 		if shoot and hrp and mp then
 			pcall(function()
 				shoot:FireServer(hrp.CFrame, mp.CFrame)
@@ -6603,7 +7147,7 @@ local function v186()
 		end
 	end
 
-	u185:Refresh(t35)
+	pcall(function() u185:Refresh(t35) end)
 end
 
 v186()
@@ -6919,6 +7463,259 @@ do
 	})
 end
 -- ===== end Yomogi MM2 extra features =====
+
+-- ===== Sheriff on-screen action pad (mobile + PC) =====
+-- Every action here already existed, but only as a tab toggle or a keybind --
+-- both useless on a phone, where you can't hold E and the hub window covers the
+-- screen. This is a draggable HUD that fires the same functions directly.
+do
+	local UIS = game:GetService("UserInputService")
+	local TS = game:GetService("TweenService")
+	local padGui, padAuto = nil, false
+
+	local function murdererKnife()
+		-- shared by KILL ALL: equips the knife if it's still in the backpack
+		local ok, knife = pcall(u78)
+		return ok and knife or nil
+	end
+
+	-- Camlock's RenderStepped loop is only created the first time the Sheriff
+	-- tab toggle is switched on, so setting Aimlock.Enabled from here alone
+	-- would do nothing. This mirrors that lazy init.
+	local function setCamlock(state)
+		getgenv().Aimlock.Enabled = state
+		if state and not getgenv().Aimlock.Initialized then
+			getgenv().Aimlock.Initialized = true
+			RunService3.RenderStepped:Connect(function()
+				if getgenv().Aimlock.Enabled then
+					local target = u85()
+					if target and target.Character then
+						local part = target.Character:FindFirstChild(getgenv().Aimlock.TargetPart)
+						if part then
+							CurrentCamera2.CFrame = CFrame.new(CurrentCamera2.CFrame.Position, part.Position)
+						end
+					end
+				end
+			end)
+		end
+	end
+
+	-- The flag alone stops the thread, so there's no connection to track: a
+	-- second press just flips padAuto false and the running loop exits on its
+	-- next tick before a new one starts.
+	local function setAuto(state)
+		padAuto = state
+		if state then
+			task.spawn(function()
+				while padAuto do
+					pcall(u69)
+					task.wait(0.18)
+				end
+			end)
+		end
+	end
+
+	local function grabGun()
+		local char = LocalPlayer5.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local drop = workspace:FindFirstChild("GunDrop", true)
+		if hrp and drop and drop:IsA("BasePart") then
+			pcall(firetouchinterest, hrp, drop, 0)
+			pcall(firetouchinterest, hrp, drop, 1)
+			return true
+		end
+		return false
+	end
+
+	local function killAll()
+		local knife = murdererKnife()
+		if not knife then
+			return false
+		end
+		for _, plr in ipairs(Players4:GetPlayers()) do
+			local hrp = plr ~= LocalPlayer5 and plr.Character
+				and plr.Character:FindFirstChild("HumanoidRootPart")
+			local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+			if hrp and hum and hum.Health > 0 then
+				pcall(function() VirtualUser:ClickButton1(Vector2.new()) end)
+				pcall(firetouchinterest, hrp, knife.Handle, 1)
+				pcall(firetouchinterest, hrp, knife.Handle, 0)
+				task.wait(0.05)
+			end
+		end
+		return true
+	end
+
+	local function buildPad()
+		if padGui then
+			return padGui
+		end
+
+		local gui = Instance.new("ScreenGui")
+		gui.Name = "YomogiSheriffPad"
+		gui.ResetOnSpawn = false
+		gui.IgnoreGuiInset = true
+		gui.DisplayOrder = 999
+		if not pcall(function()
+			gui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+		end) then
+			gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+		end
+
+		local root = Instance.new("Frame")
+		root.Name = "Pad"
+		root.AnchorPoint = Vector2.new(1, 0.5)
+		root.Position = UDim2.new(1, -14, 0.5, 0)
+		root.Size = UDim2.fromOffset(104, 238)
+		root.BackgroundColor3 = Color3.fromRGB(16, 12, 10)
+		root.BackgroundTransparency = 0.12
+		root.BorderSizePixel = 0
+		root.Active = true
+		root.Parent = gui
+		Instance.new("UICorner", root).CornerRadius = UDim.new(0, 14)
+
+		local rs = Instance.new("UIStroke", root)
+		rs.Thickness = 1.4
+		rs.Transparency = 0.3
+		local rg = Instance.new("UIGradient", rs)
+		rg.Color = ColorSequence.new(Brand.From, Brand.To)
+		rg.Rotation = 30
+
+		local grip = Instance.new("TextLabel")
+		grip.Size = UDim2.new(1, 0, 0, 24)
+		grip.BackgroundTransparency = 1
+		grip.Text = "⣿ SHERIFF"
+		grip.TextSize = 11
+		grip.TextColor3 = Color3.fromRGB(190, 170, 148)
+		grip.FontFace = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Bold)
+		grip.Parent = root
+
+		local list = Instance.new("Frame")
+		list.Position = UDim2.fromOffset(0, 24)
+		list.Size = UDim2.new(1, 0, 1, -24)
+		list.BackgroundTransparency = 1
+		list.Parent = root
+		local layout = Instance.new("UIListLayout", list)
+		layout.Padding = UDim.new(0, 6)
+		layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		local pad = Instance.new("UIPadding", list)
+		pad.PaddingTop = UDim.new(0, 2)
+
+		local function mkButton(text, colour, onClick)
+			local b = Instance.new("TextButton")
+			b.Size = UDim2.fromOffset(88, 34)
+			b.BackgroundColor3 = colour
+			b.BackgroundTransparency = 0.1
+			b.AutoButtonColor = false
+			b.Text = text
+			b.TextSize = 12
+			b.TextColor3 = Color3.fromRGB(18, 14, 11)
+			b.FontFace = Font.new("rbxasset://fonts/families/Nunito.json", Enum.FontWeight.Bold)
+			b.Parent = list
+			Instance.new("UICorner", b).CornerRadius = UDim.new(0, 9)
+
+			-- Activated covers mouse AND touch, so one handler serves both
+			b.Activated:Connect(function()
+				TS:Create(b, TweenInfo.new(0.08), { Size = UDim2.fromOffset(82, 31) }):Play()
+				task.delay(0.09, function()
+					pcall(function()
+						TS:Create(b, TweenInfo.new(0.12), { Size = UDim2.fromOffset(88, 34) }):Play()
+					end)
+				end)
+				pcall(onClick, b)
+			end)
+			return b
+		end
+
+		local function setState(btn, on, label)
+			btn.Text = label .. (on and "  ON" or "  OFF")
+			btn.BackgroundColor3 = on and Color3.fromRGB(126, 217, 143) or Color3.fromRGB(214, 176, 120)
+		end
+
+		mkButton("SHOOT MURD", Brand.From, function()
+			pcall(u69)
+		end)
+
+		local autoBtn
+		autoBtn = mkButton("AUTO  OFF", Color3.fromRGB(214, 176, 120), function()
+			setAuto(not padAuto)
+			setState(autoBtn, padAuto, "AUTO")
+		end)
+
+		local lockBtn
+		lockBtn = mkButton("CAMLOCK  OFF", Color3.fromRGB(214, 176, 120), function()
+			setCamlock(not getgenv().Aimlock.Enabled)
+			setState(lockBtn, getgenv().Aimlock.Enabled, "CAMLOCK")
+		end)
+
+		mkButton("GRAB GUN", Color3.fromRGB(160, 205, 236), function()
+			grabGun()
+		end)
+
+		mkButton("KILL ALL", Color3.fromRGB(233, 130, 130), function(b)
+			if not killAll() then
+				local old = b.Text
+				b.Text = "NO KNIFE"
+				task.delay(1.1, function()
+					pcall(function() b.Text = old end)
+				end)
+			end
+		end)
+
+		-- drag by the grip, mouse or finger
+		do
+			local dragging, startPos, startInput = false, nil, nil
+			grip.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1
+					or input.UserInputType == Enum.UserInputType.Touch then
+					dragging, startPos, startInput = true, root.Position, input.Position
+					input.Changed:Connect(function()
+						if input.UserInputState == Enum.UserInputState.End then
+							dragging = false
+						end
+					end)
+				end
+			end)
+			UIS.InputChanged:Connect(function(input)
+				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+					or input.UserInputType == Enum.UserInputType.Touch) then
+					local d = input.Position - startInput
+					root.Position = UDim2.new(
+						startPos.X.Scale, startPos.X.Offset + d.X,
+						startPos.Y.Scale, startPos.Y.Offset + d.Y)
+				end
+			end)
+		end
+
+		padGui = gui
+		return gui
+	end
+
+	t1.SheriffTab:Divider()
+	t1.SheriffTab:Section({ Title = "On-screen pad", Icon = "smartphone" })
+	t1.SheriffTab:Toggle({
+		Title = "Mobile Button Pad",
+		Desc = "Draggable on-screen buttons — shoot, auto, camlock, grab gun, kill all",
+		Value = UIS.TouchEnabled,
+		Callback = function(state)
+			if state then
+				buildPad().Enabled = true
+			elseif padGui then
+				padGui.Enabled = false
+			end
+		end
+	})
+
+	-- default it on for touch devices, which is the whole point of the pad
+	if UIS.TouchEnabled then
+		pcall(buildPad)
+	end
+end
+-- ===== end Sheriff pad =====
+
+YoSplash.set("Finishing up", 0.95)
+task.wait(0.35)   -- let the last tip land instead of flashing past
+YoSplash.done()
 
 pcall(function()
 	_Raw:Notify({
